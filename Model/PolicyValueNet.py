@@ -3,9 +3,9 @@ from torch import nn
 
 
 class PolicyValueNet(nn.Module):
-    def __init__(self,board_size) -> None:
+    def __init__(self,board_size, device) -> None:
         super().__init__()
-        
+        self.device = device
         # 特征提取
         self.feature_net = nn.Sequential(
             nn.Conv2d(4,32,kernel_size=3,stride=1,padding=1),
@@ -34,7 +34,8 @@ class PolicyValueNet(nn.Module):
             nn.Linear(64,1)
         )
         
-    def forward(self,x)->tuple[torch.Tensor,torch.Tensor]:
+    def forward(self,x:torch.Tensor)->tuple[torch.Tensor,torch.Tensor]:
+        x = x.to(device=self.device)
         feature = self.feature_net(x)
         prob = self.policy_net(feature)
         prob = torch.softmax(prob,dim=-1)
@@ -42,7 +43,8 @@ class PolicyValueNet(nn.Module):
         value = torch.tanh(value)
         return prob,value
     
-    def evaluate(self,x) -> tuple[torch.Tensor,torch.Tensor]:
+    def evaluate(self,x:torch.Tensor) -> tuple[torch.Tensor,torch.Tensor]:
+        x = x.to(device=self.device)
         with torch.no_grad():
             prob,value = self.forward(x)
         return prob.squeeze(),value.squeeze()

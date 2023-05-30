@@ -32,9 +32,7 @@ class TreeNode(object):
             
     def select(self,c_puct):
         # PUCT选择
-        return self.children[np.argmax([
-            node.score(c_puct) for node in self.children.values()
-        ])]
+        return max(self.children.items(), key=lambda x: x[1].score(c_puct))
         
     def expand(self,actions,priors):
         # 扩展
