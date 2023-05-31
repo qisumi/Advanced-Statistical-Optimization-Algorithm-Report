@@ -1,5 +1,5 @@
 from collections import deque
-import random
+import random as random
 from Model.MCTree import TreeNode
 import torch
 from Model.PolicyValueNet import PolicyValueNet
@@ -8,8 +8,9 @@ from utils.FIX_GOMOKU import gomoku_util
 import numpy as np
 from scipy.special import softmax
 from tqdm import tqdm
+import copy
 class MCTree(object):
-    def __init__(self,board_size=15,c_puct=5.0,nsearch=1000) -> None:
+    def __init__(self,board_size=15,c_puct=5.0,nsearch=400) -> None:
         self.board_size:int = board_size
         self.root:TreeNode = TreeNode(None,1.0)
         self.c_puct:float = c_puct
@@ -63,7 +64,8 @@ class MCTree(object):
     def alpha(self,state:GomokuState,pvnet:PolicyValueNet, temperature = 1e-3):
         # 计算子节点概率
         for _ in range(self.nsearch):
-            self.mct_search(state,pvnet)
+            _state = copy.deepcopy(state)
+            self.mct_search(_state,pvnet)
         node_info = [
             (action,node.N)
             for action, node in self.root.children.items()
@@ -83,8 +85,8 @@ class MCTree(object):
         
 class MCTRunner(object):
     def __init__(self, pvnet:PolicyValueNet, board_size = 15,
-        eps = 0.25, alpha = 0.03, 
-        c_puct=5.0, nsearch=1000, selfplay=False) -> None:
+        eps = 0.25, alpha = 0.15, 
+        c_puct=5.0, nsearch=400, selfplay=False) -> None:
         
         self.pvnet = pvnet
         self.mcttree = MCTree(board_size, c_puct, nsearch)
@@ -125,15 +127,15 @@ class MCTTrainer(object):
         self.n_inrow = n_inrow
         self.buffer_size = 10000
         self.c_puct = 5.0
-        self.nsearch = 400
-        self.temperature = 1e-3
+        self.nsearch = 600
+        self.temperature = 1.0
         self.device = device
-        self.lr = 1e-3
+        self.lr = 2e-3
         self.l2_reg = 1e-4
         self.niter = 5
-        self.batch_size = 128
-        self.ntrain = 1000
-
+        self.batch_size = 512
+        self.ntrain = 500
+        self.loss = []
         self.buffer = deque(maxlen=self.buffer_size)
         self.pvnet = PolicyValueNet(self.board_size,device).to(device=device)
         self.idx = 1
@@ -193,6 +195,8 @@ class MCTTrainer(object):
         self.buffer.extend(data)
 
         for idx in range(self.niter):
+            if len(self.buffer) < self.batch_size:
+                continue
             feats, probs, values = zip(*random.sample(self.buffer, self.batch_size))
             feats = torch.tensor(np.stack(feats, axis=0)).to(device=self.device)
             probs = torch.tensor(np.stack(probs, axis=0)).to(device=self.device)
@@ -203,6 +207,10 @@ class MCTTrainer(object):
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
+        if len(self.buffer) < self.batch_size:
+            return
+        self.loss.append(loss.item())
+        print("  loss:", loss.item())
             
     def train(self):
         print(f"{self.board_size}x{self.board_size}_{self.n_inrow}")
@@ -212,6 +220,7 @@ class MCTTrainer(object):
             torch.save(self.pvnet.state_dict(),f"checkpoints/"+
                        f"{self.board_size}x{self.board_size}_{self.n_inrow}_pvnet.pth")
             torch.save(idx,f"checkpoints/{self.board_size}x{self.board_size}_{self.n_inrow}_idx.pth")
+            torch.save(self.loss,f"checkpoints/{self.board_size}x{self.board_size}_{self.n_inrow}_loss.pth")
             if idx%100==0:
                 torch.save(self.pvnet.state_dict(),f"checkpoints/"+
                        f"{self.board_size}x{self.board_size}_{self.n_inrow}_pvnet_{idx}.pth")
