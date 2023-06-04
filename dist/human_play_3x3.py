@@ -9,9 +9,9 @@ n_inrow = 3
 
 # 加载AI模型
 model = PolicyValueNet(board_size)
-print("loading model iter:"+str(torch.load('checkpoints/'+
+print("loading model iter:"+str(torch.load(''+
                  f"{board_size}x{board_size}_{n_inrow}_idx.pth")))
-model.load_state_dict(torch.load(f"checkpoints/"+
+model.load_state_dict(torch.load(f""+
                        f"{board_size}x{board_size}_{n_inrow}_pvnet.pth",map_location=torch.device('cpu')))
 AIPlayer = MCTRunner(model, board_size, c_puct=5.0, nsearch=400, selfplay=False)
 
